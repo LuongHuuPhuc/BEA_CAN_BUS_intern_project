@@ -1,0 +1,87 @@
+KHUNG DỮ LIỆU CAN TRONG ĐỊNH DẠNG CHUẨN (STANDARD) và ĐỊNH DẠNG MỞ RỘNG (EXTENED)
+1. KHUNG CHUẨN
+           <---------------------------------------- DATA FRAME ----------------------------------------->
+|----------|-----|-------------------|---------------|------------|--------------|-----|-----|-----|-----|-----|----------|
+| Bus Idle | SOF | Arbitration Field | Control Field | Data Field |  CRC Field   | ACK Field | EOF | ITM | Bus Idle | 
+|----------|-----|-------------------|---------------|------------|--------------|-----|-----|-----|-----|-----|----------|
+                 |                   |               |            |              |           |
+-----------------| Identifier | RTR  | IDE | r | DLC |------------|CRC Seq | DEL | ACK | DEL |-----------
+
++ Bus idle: Bus ở trạng thái nghỉ
+
++ SOF (Start of Frame): Bit bắt đầu frame (1 bit) và là Dominant bit (bit 0)
+
++ Arbitration Field: Trường xác định quyền ưu tiên. Định dạng chuẩn Field này có độ dài 12-bit (11-bit ID và 1 bit RTR). Bao gồm: 
+   - Identifier (bit ID): 11-bit 
+
+   - RTR (Remote Transmission Request): Bit dùng để phân biệt là khung Data Frame hay Remote Frame. Bit này luôn nằm sau bit ID
+     + Nếu là Data Frame thì bit này là Dominant. 
+     + Nếu là Remote Frame thì bit này là Recessive.
+     + Nếu trường hợp Data Frame và Remote Frame có cùng ID được gửi đi đồng thời thì Data Frame sẽ được ưu tiên hơn 
+
++ Control Field: Trường điều khiển, khác nhau giữa khung chuẩn và khung mở rộng 
+   - IDE (Identifier Extension): Bit dùng để phân biệt giữa khung chuẩn và khung mở rộng. IDE = 0 quy định khung chuẩn, IDE = 1 quy định khung mở rộng. Bit này nằm ở Arbitration Field ở khung mở rộng và Control Field ở khung chuẩn. 
+
+   - r, r0, r1: Các bit dự trữ. Tuy các bit này phải được truyền là Recessive Bit (bit-1) bởi bộ truyền nhưng bộ nhận không quan tâm đến giá trị của các bit này
+
+   - DLC (Data Length Code): Quy định số byte của trường Data Frame, có độ dài 4 bit. Chỉ mang giá trị từ 0-8 tương ứng với Data Field (Trường dữ liệu). Data Frame có thể không có byte dữ liệu nào nếu DLC = 0. Giá trị lớn hơn 8 không được phép sử dụng
+
++ Data Field: Trường dữ liệu. Trường này có độ dài từ 0-8 bytes tùy vào giá trị DLC ở trường điều khiển.
+
++ CRC Field: Trường kiểm tra gồm 16-bit được chia làm 2 phần: 
+    - CRC Sequence: 15-bit CRC tuần tự
+    - DEL (Delimeter): là một Recessive Bit để phân cách trường
+
++ ACK Field: Trường báo nhận (Acknowlegde) có độ dài 2-bit: 
+    - ACK Slot: độ dài 1 bit. Khi Node truyền dữ liệu sẽ thiết lập bit này là Recessive bit. Khi một hoặc nhiều Node nhận chính xác giá trị thông điệp (Không có lỗi và đã so sánh CRC Sequence trùng khớp) thì nó sẽ báo lại cho bộ truyền bằng cách truyền ra 1 Dominant-bit ngay vị trí ACK Slot để ghi đè lên Recessive-bit ban nãy
+    - DEL (Delimeter): Luôn có 1 bit và là Recessive-bit.
+
+2. KHUNG MỞ RỘNG 
+==========================================================================================================================================
+
+Ass 1: CAN COMMUNICATION 
+- Mục tiêu: 
+Sinh viên thực hiện giao tiếp CAN bus giữa hai module CAN: 
+ + Node 1: Module 1 
+ + Node 2: Module 2
+
+- Giao tiếp giữa hai Node: 
+| Vai trò |  Node 1 | Node 2 | 
+|---------|---------|--------|
+|TX (gửi) | 0x012   |  0x0A2 |
+|RX (nhận)| 0x0A2   |  0x012 |
+
+Node 2 GỬI (0x0A2): 
+- Dữ liệu: 
+  + Byte 0 & 1: Value 1 & Value 2
+  + Byte 6: Bộ đếm (0x0 -> 0xF)
+  + Byte 7: Checksum (CRC-8 SAE J1850 trên Byte 0-6)
+
+Node 1 PHẢN HỒI (0x012):
+- Dữ liệu: 
+  + Byte 0 & 1: Copy từ Value1 & Value2 nhận được 
+  + Byte 2: Tổng (Value1 + Value2)
+  + Byte 3-5: 0x00
+  + Byte 6: Bộ đếm (0x0 -> 0xF)
+  + Byte 7: Checksum (CRC-8 SAE J1850 từ Byte 0-6)
+
+Chu kỳ gửi: 
+ - 0x012: 4s (từ Node 1)
+ - 0x0A2: 50ms (từ Node 2)
+
+ĐÁNH GIÁ: 
+ - Node 1 gửi được tin nhắn 0x012: 2 điểm.
+ - Node 1 gửi 0x012 đúng thời gian (±1ms): 2 điểm.
+ - Node 1 gửi đúng dữ liệu ở byte 0, 1: 1 điểm.
+ - Node 1 gửi đúng dữ liệu ở byte 2: 1 điểm.
+ - Node 1 gửi đúng checksum ở byte 7: 2 điểm.
+ - Node 1 hiển thị giá trị qua UART trên máy tính: 2 điểm.
+
+YÊU CẦU ĐẶC BIỆT: 
+- Có 1 button để làm sai CRC trong message 0x012
+- Nếu Node 2 KHÔNG nhận được 0x012 hoặc sai CRC => Nó sẽ gửi lại 0x0A2 với byte 0-5 đều là 0x00
+
+THÔNG SỐ CAN:
++ ID: 11-bit standard (Data Frame tiêu chuẩn)
++ Tốc độ 500kps
++ Byte order: Motorola format (Big Endian)
